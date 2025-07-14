@@ -59,7 +59,14 @@ ROUTE_MAPPING = {
         "service_url": settings.GESTION_SERVICE_URL,
         "target_path": "auth",
         "auth_required": True
-    }
+    },
+
+    # Rutas de Seguimiento
+    "tracker": {
+        "service_url": settings.TRACKING_SERVICE_URL,
+        "target_path": "api/v1",
+        "auth_required": False
+    },
 }
 
 async def proxy_request(
