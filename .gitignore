@@ -1,0 +1,27 @@
+# Ignorar archivos de entorno
+.env
+
+# Ignorar dependencias de Node.js
+node_modules/
+
+# Ignorar dependencias de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+ENV/
+.venv/
+
+# Ignorar archivos de log
+*.log
+
+# Ignorar archivos de configuración locales
+*.local
+*.env.*
+
+# Ignorar archivos de configuración de IDEs
+.vscode/
+
+
