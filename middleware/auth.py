@@ -20,13 +20,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
     try:
         token = credentials.credentials
-        logger.info(f"Token recibido en middleware: {token}")
         payload = jwt.decode(
             token,
             settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
-        logger.info(f"Payload decodificado: {payload}")
         if not (username := payload.get("sub")):
             logger.error("Token inválido: usuario no encontrado en el payload.")
             raise HTTPException(

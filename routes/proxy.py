@@ -87,9 +87,6 @@ async def proxy_request(
         if key.lower() not in ['host', 'content-length']
     }
     
-    # Log del header Authorization recibido
-    logger.info(f"Authorization header recibido: {headers.get('authorization')}")
-    
     # Manejo de autenticación
     if auth_required:
         if "authorization" not in headers:
