@@ -101,7 +101,8 @@ async def proxy_request(
             url=target_url,
             headers=headers,
             content=await request.body(),
-            params=request.query_params
+            params=request.query_params,
+            follow_redirects=True
         )
         
         # Filtrado de headers de respuesta
