@@ -67,6 +67,13 @@ ROUTE_MAPPING = {
         "target_path": "api/v1",
         "auth_required": False
     },
+
+    # Rutas de Facturación
+    "facturas": {
+        "service_url": settings.FACTURACION_SERVICE_URL,
+        "target_path": "api/facturas",
+        "auth_required": True
+    },
 }
 
 async def proxy_request(
