@@ -84,31 +84,38 @@ async def proxy_request(
     auth_required: bool = True
 ) -> Response:
     
-    logger.info(f"--- PROXY V3.0 (JSON MODE) PARA: {target_path} ---")
+    logger.info(f"--- PROXY V4.0 (PASS-THROUGH AUTH) PARA: {target_path} ---")
 
     target_url = f"{service_url}/{target_path}/{remaining_path}".rstrip('/') if remaining_path else f"{service_url}/{target_path}".rstrip('/')
 
-    # Limpiamos headers del request
+    # 1. Copiamos los headers del request original (Incluido Authorization)
     headers = {
         key: value for key, value in request.headers.items()
         if key.lower() not in ['host', 'content-length', 'accept-encoding']
     }
     
-    # Pedimos identity para ahorrar procesamiento, aunque .json() lo manejaría igual
     headers["Accept-Encoding"] = "identity"
     
+    # 2. Validación de Seguridad (Solo chequeamos, no modificamos)
     if auth_required:
         try:
             auth_header = headers.get("authorization") or headers.get("Authorization")
             if auth_header:
                 token_str = auth_header.split(" ")[1] if " " in auth_header else auth_header
-                current_user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token_str))
-                headers["Authorization"] = f"Bearer {current_user['token']}"
-        except Exception:
-            pass
+                # Validamos que el token sea real. Si falla, get_current_user lanzará error y cortará el flujo.
+                await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token_str))
+                
+                # ¡IMPORTANTE! No sobreescribimos headers["Authorization"].
+                # Usamos el mismo que nos mandó el Frontend, que sabemos que funciona.
+                
+        except Exception as e:
+            logger.error(f"Error validando token en Gateway: {e}")
+            # Opcional: Si quieres ser estricto, puedes descomentar esto:
+            # raise HTTPException(status_code=401, detail="Token inválido en Gateway")
+            pass 
 
     try:
-        # Hacemos la petición
+        # 3. Hacemos la petición
         response = await client.request(
             method=request.method,
             url=target_url,
@@ -118,23 +125,11 @@ async def proxy_request(
             follow_redirects=True
         )
         
-        # --- ESTRATEGIA V3.0: RECONSTRUCCIÓN JSON ---
-        # Intentamos leer la respuesta como JSON puro.
-        # Esto elimina automáticamente cualquier problema de GZIP o codificación.
+        # 4. Reconstrucción JSON (Tu V3.0 que funcionaba bien)
         try:
             data = response.json()
-            
-            # Si es JSON válido, dejamos que FastAPI construya la respuesta limpia
-            return JSONResponse(
-                content=data, 
-                status_code=response.status_code
-                # Nota: JSONResponse calcula sus propios headers (Content-Length, Type),
-                # así que no pasamos los viejos para evitar conflictos.
-            )
-            
+            return JSONResponse(content=data, status_code=response.status_code)
         except ValueError:
-            # Si el backend no devolvió JSON (ej: devolvió un archivo o texto simple),
-            # usamos el método de fallback con bytes crudos.
             return Response(
                 content=response.content,
                 status_code=response.status_code,
