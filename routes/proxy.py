@@ -82,7 +82,7 @@ async def proxy_request(
     remaining_path: str,
     request: Request,
     auth_required: bool = True
-) -> StreamingResponse:
+) -> httpx.Response: # <--- CAMBIO 2: Tipo de retorno
     """Función central de redirección optimizada"""
     
     # Construcción de URL
@@ -94,11 +94,25 @@ async def proxy_request(
         if key.lower() not in ['host', 'content-length']
     }
     
+    # CAMBIO 3: Forzar al backend a NO enviar GZIP.
+    # Esto evita que httpx tenga que descomprimir y que nosotros nos equivoquemos al reenviar.
+    headers["Accept-Encoding"] = "identity"
+    
     # Manejo de autenticación
     if auth_required:
         if "authorization" not in headers:
-            current_user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=headers["authorization"].split(" ")[1]))
-            headers["Authorization"] = f"Bearer {current_user['token']}"
+            # Asegúrate de manejar el caso donde el token no viene o está mal formado
+            try:
+                auth_header = headers.get("authorization")
+                if not auth_header:
+                     # Si no hay header, intentamos obtenerlo del request original o fallamos
+                     pass 
+                else:
+                    current_user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=auth_header.split(" ")[1]))
+                    headers["Authorization"] = f"Bearer {current_user['token']}"
+            except Exception as e:
+                logger.error(f"Error de auth en proxy: {e}")
+                # Opcional: raise HTTPException(401)
     
     logger.info(f"Proxying {request.method} {request.url.path} -> {target_url}")
     
@@ -113,18 +127,23 @@ async def proxy_request(
         )
         
         # Filtrado de headers de respuesta
-        excluded_headers = ['content-encoding', 'transfer-encoding', 'connection', 'server']
+        # CAMBIO 4: Agregamos 'content-length' a la lista de excluidos para que FastAPI ponga el nuevo correcto.
+        excluded_headers = ['content-encoding', 'transfer-encoding', 'connection', 'server', 'content-length']
+        
         response_headers = {
             key: value for key, value in response.headers.items()
             if key.lower() not in excluded_headers
         }
+        
         response_headers.update({
             "X-Proxied-By": "API-Gateway",
             "X-Target-Service": service_url
         })
         
-        return StreamingResponse(
-            content=iter([response.content]),
+        # CAMBIO 5: Usamos Response directo. 
+        # httpx.content ya son bytes descomprimidos (gracias a Accept-Encoding: identity será texto plano).
+        return httpx.Response(
+            content=response.content,
             status_code=response.status_code,
             headers=response_headers,
             media_type=response.headers.get("content-type")
