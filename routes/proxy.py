@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials
 import httpx
 import logging
@@ -82,41 +82,45 @@ async def proxy_request(
     remaining_path: str,
     request: Request,
     auth_required: bool = True
-) -> Response: # <--- CAMBIO 2: Tipo de retorno
-    """Función central de redirección optimizada"""
+) -> Response:
+    """
+    Función central de redirección que soluciona el problema de GZIP.
+    """
     
-    # Construcción de URL
+    # 1. Construcción de URL
     target_url = f"{service_url}/{target_path}/{remaining_path}".rstrip('/') if remaining_path else f"{service_url}/{target_path}".rstrip('/')
 
-    # Preparación de headers
+    # 2. Limpieza de Headers de la Petición (Request)
+    # Quitamos 'host' y 'content-length' para evitar conflictos.
     headers = {
         key: value for key, value in request.headers.items()
         if key.lower() not in ['host', 'content-length']
     }
     
-    # CAMBIO 3: Forzar al backend a NO enviar GZIP.
-    # Esto evita que httpx tenga que descomprimir y que nosotros nos equivoquemos al reenviar.
+    # --- FIX CRÍTICO 1: EVITAR COMPRESIÓN EN EL BACKEND ---
+    # Le decimos al backend explícitamente: "Mándame texto plano, NO GZIP".
+    # Esto evita que httpx tenga que descomprimir y simplifica el manejo.
     headers["Accept-Encoding"] = "identity"
     
-    # Manejo de autenticación
+    # 3. Manejo de autenticación (Tu lógica original)
     if auth_required:
-        if "authorization" not in headers:
-            # Asegúrate de manejar el caso donde el token no viene o está mal formado
-            try:
-                auth_header = headers.get("authorization")
-                if not auth_header:
-                     # Si no hay header, intentamos obtenerlo del request original o fallamos
-                     pass 
-                else:
-                    current_user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=auth_header.split(" ")[1]))
-                    headers["Authorization"] = f"Bearer {current_user['token']}"
-            except Exception as e:
-                logger.error(f"Error de auth en proxy: {e}")
-                # Opcional: raise HTTPException(401)
+        try:
+            auth_header = headers.get("authorization") or headers.get("Authorization")
+            if auth_header:
+                # Extraemos token limpio
+                token_str = auth_header.split(" ")[1] if " " in auth_header else auth_header
+                # Validamos user (opcional, según tu lógica)
+                current_user = await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token_str))
+                # Re-inyectamos el token validado
+                headers["Authorization"] = f"Bearer {current_user['token']}"
+        except Exception as e:
+            logger.error(f"Error procesando auth en proxy: {e}")
+            # Opcional: decidir si lanzar error 401 o dejar pasar
     
     logger.info(f"Proxying {request.method} {request.url.path} -> {target_url}")
     
     try:
+        # 4. Hacer la petición al Backend
         response = await client.request(
             method=request.method,
             url=target_url,
@@ -126,34 +130,41 @@ async def proxy_request(
             follow_redirects=True
         )
         
-        # Filtrado de headers de respuesta
-        # CAMBIO 4: Agregamos 'content-length' a la lista de excluidos para que FastAPI ponga el nuevo correcto.
-        excluded_headers = ['content-encoding', 'transfer-encoding', 'connection', 'server', 'content-length']
+        # --- FIX CRÍTICO 2: LIMPIEZA DE HEADERS DE RESPUESTA ---
+        # Estos headers son los que confunden al navegador si se reenvían mal.
+        excluded_headers = {
+            'content-encoding', # ¡El culpable de los iconos raros!
+            'content-length',   # Deja que FastAPI lo recalcule
+            'transfer-encoding',
+            'connection',
+            'keep-alive',
+            'public-key-pins-report-only'
+        }
         
         response_headers = {
             key: value for key, value in response.headers.items()
             if key.lower() not in excluded_headers
         }
         
-        response_headers.update({
-            "X-Proxied-By": "API-Gateway",
-            "X-Target-Service": service_url
-        })
+        # Agregamos marcas de depuración
+        response_headers["X-Proxied-By"] = "API-Gateway"
         
-        # CAMBIO 5: Usamos Response directo. 
-        # httpx.content ya son bytes descomprimidos (gracias a Accept-Encoding: identity será texto plano).
+        # 5. Retornar Respuesta Limpia
         return Response(
             content=response.content,
             status_code=response.status_code,
             headers=response_headers,
-            media_type=response.headers.get("content-type")
+            media_type=response.headers.get("content-type") # Mantiene application/json
         )
         
     except httpx.ConnectError:
         logger.error(f"Error de conexión con {service_url}")
         raise HTTPException(status_code=503, detail="Servicio no disponible")
     except Exception as e:
-        logger.error(f"Error inesperado: {str(e)}")
+        logger.error(f"Error inesperado en gateway: {str(e)}")
+        # Esto imprimirá el error real en los logs de Render para que lo veamos si falla
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno del gateway")
 
 # Rutas principales
