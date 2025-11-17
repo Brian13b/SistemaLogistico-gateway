@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 import httpx
 import logging
@@ -84,8 +84,7 @@ async def proxy_request(
     auth_required: bool = True
 ) -> Response:
     
-    # LOG DE VERIFICACIÓN (Para saber si se actualizó el código)
-    logger.info(f"--- EJECUTANDO PROXY V2.0 (FIX GZIP) PARA: {target_path} ---")
+    logger.info(f"--- PROXY V3.0 (JSON MODE) PARA: {target_path} ---")
 
     target_url = f"{service_url}/{target_path}/{remaining_path}".rstrip('/') if remaining_path else f"{service_url}/{target_path}".rstrip('/')
 
@@ -95,10 +94,9 @@ async def proxy_request(
         if key.lower() not in ['host', 'content-length', 'accept-encoding']
     }
     
-    # Forzamos Identity (Texto plano)
+    # Pedimos identity para ahorrar procesamiento, aunque .json() lo manejaría igual
     headers["Accept-Encoding"] = "identity"
     
-    # 3. Manejo de autenticación (Tu lógica original)
     if auth_required:
         try:
             auth_header = headers.get("authorization") or headers.get("Authorization")
@@ -109,39 +107,45 @@ async def proxy_request(
         except Exception:
             pass
 
+    try:
+        # Hacemos la petición
+        response = await client.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            content=await request.body(),
+            params=request.query_params,
+            follow_redirects=True
+        )
+        
+        # --- ESTRATEGIA V3.0: RECONSTRUCCIÓN JSON ---
+        # Intentamos leer la respuesta como JSON puro.
+        # Esto elimina automáticamente cualquier problema de GZIP o codificación.
         try:
-            # Hacemos la petición
-            response = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=headers,
-                content=await request.body(),
-                params=request.query_params,
-                follow_redirects=True
+            data = response.json()
+            
+            # Si es JSON válido, dejamos que FastAPI construya la respuesta limpia
+            return JSONResponse(
+                content=data, 
+                status_code=response.status_code
+                # Nota: JSONResponse calcula sus propios headers (Content-Length, Type),
+                # así que no pasamos los viejos para evitar conflictos.
             )
             
-            # Headers prohibidos que causan la basura
-            excluded_headers = {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}
-            
-            response_headers = {
-                key: value for key, value in response.headers.items()
-                if key.lower() not in excluded_headers
-            }
-            
-            # CAMBIO CLAVE: Usamos .text en lugar de .content
-            # .text decodifica automáticamente cualquier GZIP que haya quedado
-            content_str = response.text
-            
+        except ValueError:
+            # Si el backend no devolvió JSON (ej: devolvió un archivo o texto simple),
+            # usamos el método de fallback con bytes crudos.
             return Response(
-                content=content_str, # FastAPI se encarga de pasarlo a bytes
+                content=response.content,
                 status_code=response.status_code,
-                headers=response_headers,
-                media_type="application/json" # Forzamos JSON
+                media_type=response.headers.get("content-type")
             )
-            
-        except Exception as e:
-            logger.error(f"Error Proxy: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error Gateway: {str(e)}")
+        
+    except Exception as e:
+        logger.error(f"Error Proxy: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error Gateway: {str(e)}")
 
 # Rutas principales
 @router.api_route("/api/{route_name:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
