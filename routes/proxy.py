@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials
 import httpx
 import logging
@@ -82,7 +82,7 @@ async def proxy_request(
     remaining_path: str,
     request: Request,
     auth_required: bool = True
-) -> httpx.Response: # <--- CAMBIO 2: Tipo de retorno
+) -> Response: # <--- CAMBIO 2: Tipo de retorno
     """Función central de redirección optimizada"""
     
     # Construcción de URL
@@ -142,7 +142,7 @@ async def proxy_request(
         
         # CAMBIO 5: Usamos Response directo. 
         # httpx.content ya son bytes descomprimidos (gracias a Accept-Encoding: identity será texto plano).
-        return httpx.Response(
+        return Response(
             content=response.content,
             status_code=response.status_code,
             headers=response_headers,
