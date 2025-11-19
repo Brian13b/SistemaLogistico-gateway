@@ -64,7 +64,7 @@ ROUTE_MAPPING = {
     # Rutas de Seguimiento
     "tracker": {
         "service_url": settings.TRACKING_SERVICE_URL,
-        "target_path": "api/v1",
+        "target_path": "api/v1/tracker",
         "auth_required": False
     },
 
