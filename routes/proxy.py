@@ -74,6 +74,23 @@ ROUTE_MAPPING = {
         "target_path": "api/facturas",
         "auth_required": True
     },
+
+    # Rutas extras
+    "finanzas": {
+        "service_url": settings.GESTION_SERVICE_URL,
+        "target_path": "/finanzas",
+        "auth_required": True
+    },
+    "gastos": {
+        "service_url": settings.GESTION_SERVICE_URL,
+        "target_path": "/gastos",
+        "auth_required": True
+    },
+    "ingresos": {
+        "service_url": settings.GESTION_SERVICE_URL,
+        "target_path": "/ingresos",
+        "auth_required": True
+    },
 }
 
 async def proxy_request(
