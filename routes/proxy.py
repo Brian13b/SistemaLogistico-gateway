@@ -76,17 +76,17 @@ ROUTE_MAPPING = {
     },
 
     # Rutas extras
-    "api/finanzas": {
+    "finanzas": {
         "service_url": settings.GESTION_SERVICE_URL,
         "target_path": "api/finanzas",
         "auth_required": True
     },
-    "api/gastos": {
+    "gastos": {
         "service_url": settings.GESTION_SERVICE_URL,
         "target_path": "api/gastos",
         "auth_required": True
     },
-    "api/ingresos": {
+    "ingresos": {
         "service_url": settings.GESTION_SERVICE_URL,
         "target_path": "apic/ingresos",
         "auth_required": True
