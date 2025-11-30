@@ -88,7 +88,7 @@ ROUTE_MAPPING = {
     },
     "ingresos": {
         "service_url": settings.GESTION_SERVICE_URL,
-        "target_path": "apic/ingresos",
+        "target_path": "api/ingresos",
         "auth_required": True
     },
 }
