@@ -7,7 +7,6 @@ from typing import Dict, Any
 from config import settings
 from middleware.auth import get_current_user
 
-# Configuración básica de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ ROUTE_MAPPING = {
         "auth_required": True
     },
 
-    # Rutas extras
+    # Rutas de reportes y finanzas
     "finanzas": {
         "service_url": settings.GESTION_SERVICE_URL,
         "target_path": "api/finanzas",
