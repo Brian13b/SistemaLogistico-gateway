@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 client = httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT)
 
-# Configuración optimizada de rutas
 ROUTE_MAPPING = {
     # Rutas de Gestión
     "conductores": {
@@ -92,19 +91,10 @@ ROUTE_MAPPING = {
     },
 }
 
-async def proxy_request(
-    service_url: str,
-    target_path: str,
-    remaining_path: str,
-    request: Request,
-    auth_required: bool = True
-) -> Response:
-    
-    logger.info(f"--- PROXY V4.0 (PASS-THROUGH AUTH) PARA: {target_path} ---")
+async def proxy_request(service_url: str, target_path: str, remaining_path: str, request: Request, auth_required: bool = True) -> Response:
 
     target_url = f"{service_url}/{target_path}/{remaining_path}".rstrip('/') if remaining_path else f"{service_url}/{target_path}".rstrip('/')
 
-    # 1. Copiamos los headers del request original (Incluido Authorization)
     headers = {
         key: value for key, value in request.headers.items()
         if key.lower() not in ['host', 'content-length', 'accept-encoding']
@@ -112,26 +102,19 @@ async def proxy_request(
     
     headers["Accept-Encoding"] = "identity"
     
-    # 2. Validación de Seguridad (Solo chequeamos, no modificamos)
     if auth_required:
         try:
             auth_header = headers.get("authorization") or headers.get("Authorization")
             if auth_header:
                 token_str = auth_header.split(" ")[1] if " " in auth_header else auth_header
-                # Validamos que el token sea real. Si falla, get_current_user lanzará error y cortará el flujo.
                 await get_current_user(HTTPAuthorizationCredentials(scheme="Bearer", credentials=token_str))
                 
-                # ¡IMPORTANTE! No sobreescribimos headers["Authorization"].
-                # Usamos el mismo que nos mandó el Frontend, que sabemos que funciona.
                 
         except Exception as e:
             logger.error(f"Error validando token en Gateway: {e}")
-            # Opcional: Si quieres ser estricto, puedes descomentar esto:
-            # raise HTTPException(status_code=401, detail="Token inválido en Gateway")
             pass 
 
     try:
-        # 3. Hacemos la petición
         response = await client.request(
             method=request.method,
             url=target_url,
@@ -141,7 +124,6 @@ async def proxy_request(
             follow_redirects=True
         )
         
-        # 4. Reconstrucción JSON (Tu V3.0 que funcionaba bien)
         try:
             data = response.json()
             return JSONResponse(content=data, status_code=response.status_code)
@@ -160,11 +142,7 @@ async def proxy_request(
 
 # Rutas principales
 @router.api_route("/api/{route_name:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-async def proxy_api_routes(
-    route_name: str,
-    request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user)
-):
+async def proxy_api_routes(route_name: str, request: Request, current_user: Dict[str, Any] = Depends(get_current_user)):
     path_parts = route_name.split('/', 1)
     base_route = path_parts[0]
     remaining_path = path_parts[1] if len(path_parts) > 1 else ""
