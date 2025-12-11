@@ -1,44 +1,42 @@
-# 🚀 API Gateway del sistema de gestión de flotas.
+# 🚀 API Gateway - Sistema Logístico
 
-Este módulo forma parte del ecosistema **Sistema Logistico** y actúa como punto central de entrada para todas las solicitudes que provienen del frontend. Se encarga de enrutar las peticiones hacia los microservicios correspondientes, además de aplicar políticas de autenticación y autorización a nivel global.
-
----
-
-🌟 **¿Qué hace este módulo?**  
-- Centraliza el acceso a todos los microservicios del sistema.  
-- Dirige las solicitudes del frontend a los servicios correspondientes mediante reglas de enrutamiento.  
-- Gestiona la autenticación y autorización utilizando **JWT**, protegiendo todos los recursos del sistema.  
-- Simplifica la arquitectura del frontend al exponer un único punto de entrada para toda la API.
+Este microservicio actúa como el **punto único de entrada** para todo el ecosistema del Sistema Logístico. Su responsabilidad es orquestar las peticiones del frontend, enrutarlas al microservicio correcto y garantizar la seguridad global.
 
 ---
 
-🔧 **Características principales**  
-- 🔐 Autenticación y autorización global con **JSON Web Tokens (JWT)**.  
-- 🔀 Enrutamiento inteligente hacia los distintos microservicios.  
-- 🛡️ Punto de control para la seguridad de todas las rutas.  
-- ⚖️ Escalabilidad mediante balanceo de carga y desacoplamiento de servicios.
+## 🌟 Funcionalidades Principales
+- **Centralización:** Unifica múltiples APIs (Backend, Tracking, Facturación) bajo un solo dominio.
+- **Seguridad (AuthN/AuthZ):** Valida tokens **JWT** antes de permitir el paso a servicios protegidos.
+- **Enrutamiento Inteligente:** Redirige tráfico HTTP basándose en prefijos de URL.
+- **Limpieza de API:** Desacopla al cliente de la estructura interna de la red.
 
 ---
 
-📚 **Ejemplo de flujo de trabajo**  
-1. 🌐 El usuario envía una solicitud desde el frontend.  
-2. 🔐 El gateway valida el token JWT.  
-3. 📨 Si es válido, redirige la petición al microservicio correspondiente.  
-4. 📊 Devuelve la respuesta al usuario desde el microservicio a través del gateway.
+## 📚 Flujo de Petición
+1.  🌐 **Cliente:** Envía `GET /api/viajes` con Header `Authorization: Bearer <token>`.
+2.  🛡️ **Gateway:** Intercepta, decodifica y valida la firma y expiración del JWT.
+3.  ✅ **Validación:**
+    - *Token Inválido:* Retorna `401 Unauthorized`.
+    - *Token Válido:* Pasa la petición al servicio `backend-core:8001`.
+4.  🔄 **Proxy:** Recibe la respuesta del microservicio y la entrega al cliente.
 
 ---
 
-🛡️ **Tecnologías Usadas**  
-- 🖥️ Lenguaje: Python  
-- ⚡ Framework: FastAPI  
-- 🔒 Autenticación: JWT  
-- 🌐 Protocolo: HTTP/REST
+## 🛡️ Stack Tecnológico
+- **Lenguaje:** Python 3.10+
+- **Framework:** FastAPI
+- **Seguridad:** PyJWT
+- **Cliente HTTP:** Httpx (Async)
 
 ---
 
-🌱 **Futuras actualizaciones**  
-- 📊 Integración con servicios de monitoreo (Prometheus, Grafana, etc.).  
-- 🌍 Soporte para internacionalización y configuración dinámica de rutas.  
-- 🚨 Registro centralizado de logs y trazabilidad de peticiones.
+## 🌱 Futuras Actualizaciones
+- [ ] **Rate Limiting:** Protección contra ataques DDoS y abuso de API.
+- [ ] **Cacheo de Respuestas:** Implementar Redis para cachear respuestas frecuentes.
+- [ ] **Documentación Unificada:** Fusionar Swagger/OpenAPI de todos los microservicios en una sola UI.
+- [ ] **Logging Centralizado:** Envío de logs a una pila ELK o Grafana Loki.
 
 ---
+
+## 👤 Autor
+**Brian Battauz** - [GitHub](https://github.com/Brian13b)
